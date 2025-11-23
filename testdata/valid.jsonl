@@ -1,0 +1,5 @@
+{"role":"user","content":"What is Go?","tokens":5}
+{"role":"assistant","content":"Go is a programming language created at Google.","tokens":10}
+{"role":"user","content":"How do I learn Go?","tokens":6}
+{"role":"assistant","content":"Start with the official Go tour at golang.org/tour","tokens":12}
+{"role":"user","content":"What about concurrency?","tokens":4}
