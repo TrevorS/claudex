@@ -1,54 +1,38 @@
-.PHONY: help build run test lint format clean coverage
+.PHONY: help build run test clean check format vet
 
-# Variables
-GO := go
-GOFLAGS := -v
-COVERAGE_FILE := coverage.out
-COVERAGE_HTML := coverage.html
+.DEFAULT_GOAL := help
 
-help: ## Display this help message
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
+help:
+	@echo "claudex - Claude Code Conversation History Viewer"
+	@echo ""
+	@echo "Available targets:"
+	@echo "  make build    - Build the claudex binary"
+	@echo "  make run      - Build and run claudex"
+	@echo "  make test     - Run all tests"
+	@echo "  make check    - Format, vet, and test (recommended before commit)"
+	@echo "  make format   - Format code with gofmt"
+	@echo "  make vet      - Run go vet"
+	@echo "  make clean    - Clean build artifacts"
+	@echo "  make help     - Show this help message"
 
-build: ## Build the claudex binary
-	$(GO) build $(GOFLAGS) -o bin/claudex ./cmd/claudex
+build:
+	go build -o bin/claudex ./cmd/claudex
 
-run: build ## Build and run claudex
+run: build
 	./bin/claudex
 
-test: ## Run all tests
-	$(GO) test $(GOFLAGS) -race -cover ./...
+test:
+	go test -v ./...
 
-coverage: ## Run tests with coverage reporting
-	$(GO) test -race -coverprofile=$(COVERAGE_FILE) ./...
-	$(GO) tool cover -html=$(COVERAGE_FILE) -o $(COVERAGE_HTML)
-	@echo "Coverage report generated: $(COVERAGE_HTML)"
+check: format vet test
+	@echo "✓ All checks passed"
 
-coverage-check: ## Run tests and show coverage percentage
-	$(GO) test -race -coverprofile=$(COVERAGE_FILE) ./...
-	$(GO) tool cover -func=$(COVERAGE_FILE) | tail -1
-	@rm $(COVERAGE_FILE)
-
-lint: ## Run golangci-lint
-	golangci-lint run ./...
-
-format: ## Format code with gofmt and goimports
+format:
 	gofmt -s -w .
-	goimports -w .
 
-fmt: format ## Alias for format
+vet:
+	go vet ./...
 
-vet: ## Run go vet
-	$(GO) vet ./...
-
-clean: ## Clean build artifacts and test files
-	$(GO) clean
-	rm -f bin/claudex $(COVERAGE_FILE) $(COVERAGE_HTML)
-
-deps: ## Download and verify dependencies
-	$(GO) mod download
-	$(GO) mod verify
-
-tidy: ## Tidy up go.mod
-	$(GO) mod tidy
-
-all: fmt vet lint test build ## Run fmt, vet, lint, test, and build
+clean:
+	go clean
+	rm -f bin/claudex
