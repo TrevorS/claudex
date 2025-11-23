@@ -1,0 +1,4 @@
+{"type":"summary","summary":"Testing error handling","sessionId":"52c56b47-aded-4bbf-90ce-5f3bb6eff7fc","timestamp":"2025-11-23T11:00:00.000Z","uuid":"msg-001","version":"1.0"}
+{"type":"message","message":{"role":"user","content":"First message"},"usage":{"input_tokens":50,"output_tokens":50},"sessionId":"52c56b47-aded-4bbf-90ce-5f3bb6eff7fc","timestamp":"2025-11-23T11:01:00.000Z","uuid":"msg-002"}
+{THIS IS NOT VALID JSON AT ALL}
+{"type":"message","message":{"role":"assistant","content":"This message should still load"},"usage":{"input_tokens":50,"output_tokens":100},"sessionId":"52c56b47-aded-4bbf-90ce-5f3bb6eff7fc","timestamp":"2025-11-23T11:02:00.000Z","uuid":"msg-003"}
