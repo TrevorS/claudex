@@ -1,0 +1,6 @@
+{"role":"user","content":"Valid message","tokens":3}
+{"role":"assistant","content":"Another valid message","tokens":4}
+{invalid json line without closing brace
+{"role":"user","content":"Message after bad line","tokens":5}
+{"role": "tool", missing closing brace
+{"role":"assistant","content":"Final message","tokens":2}
