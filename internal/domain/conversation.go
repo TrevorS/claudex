@@ -8,12 +8,13 @@ import (
 
 // Conversation represents a conversation with Claude.
 type Conversation struct {
-	ID        string
-	Title     string
-	Model     string
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	Messages  []*Message
+	ID          string
+	Title       string
+	Model       string
+	ProjectPath string // Project path (e.g., "foo/bar" decoded from filesystem "-foo-bar")
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	Messages    []*Message
 }
 
 // NewConversation creates a new Conversation with initialized message slice.

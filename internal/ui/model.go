@@ -6,6 +6,9 @@ import (
 
 	"github.com/TrevorS/claudex/internal/domain"
 	"github.com/TrevorS/claudex/internal/repository"
+	"github.com/TrevorS/claudex/internal/search"
+	"github.com/TrevorS/claudex/internal/ui/components"
+	"github.com/TrevorS/claudex/internal/ui/views"
 )
 
 // ViewState represents the current view being displayed.
@@ -22,7 +25,8 @@ const (
 // Model is the root Bubble Tea model managing global application state.
 type Model struct {
 	// Core dependencies
-	repository repository.Repository
+	repository   repository.Repository
+	searchEngine *search.Engine
 
 	// View state
 	state ViewState
@@ -31,10 +35,18 @@ type Model struct {
 	width  int
 	height int
 
+	// Sub-views
+	listView   *views.ListView
+	detailView *views.DetailView
+	searchBar  *components.SearchBar
+
 	// Conversation list state
-	conversations []*domain.Conversation
-	selected      string // Selected conversation ID
-	scrollPos     int    // Scroll position in list
+	conversations  []*domain.Conversation
+	searchResults  []*domain.Conversation
+	selected       string // Selected conversation ID
+	scrollPos      int    // Scroll position in list
+	isSearchActive bool   // True when showing search results
+	currentQuery   string // Current search query
 
 	// Error state
 	err error
@@ -42,17 +54,26 @@ type Model struct {
 
 // NewModel creates and returns a new root Model.
 func NewModel(repo repository.Repository) Model {
+	listView := views.NewListView(repo)
+	searchEngine := search.NewEngine(repo)
+	searchBar := components.NewSearchBar()
 	return Model{
-		repository: repo,
-		state:      ViewList,
-		width:      0,
-		height:     0,
+		repository:   repo,
+		searchEngine: searchEngine,
+		state:        ViewList,
+		width:        0,
+		height:       0,
+		listView:     listView,
+		searchBar:    searchBar,
 	}
 }
 
 // Init returns the initial command for the model.
 // This loads the initial conversation list from the repository.
 func (m Model) Init() tea.Cmd {
+	if m.listView != nil {
+		return m.listView.Init()
+	}
 	return tea.Batch()
 }
 
@@ -130,5 +151,43 @@ func (m Model) Error() error {
 // SetError sets the error state.
 func (m Model) SetError(err error) Model {
 	m.err = err
+	return m
+}
+
+// SearchBar returns the search bar component.
+func (m Model) SearchBar() *components.SearchBar {
+	return m.searchBar
+}
+
+// SearchResults returns the current search results.
+func (m Model) SearchResults() []*domain.Conversation {
+	return m.searchResults
+}
+
+// SetSearchResults sets the search results.
+func (m Model) SetSearchResults(results []*domain.Conversation) Model {
+	m.searchResults = results
+	return m
+}
+
+// IsSearchActive returns true if search is active.
+func (m Model) IsSearchActive() bool {
+	return m.isSearchActive
+}
+
+// SetSearchActive sets the search active flag.
+func (m Model) SetSearchActive(active bool) Model {
+	m.isSearchActive = active
+	return m
+}
+
+// CurrentQuery returns the current search query.
+func (m Model) CurrentQuery() string {
+	return m.currentQuery
+}
+
+// SetCurrentQuery sets the current search query.
+func (m Model) SetCurrentQuery(query string) Model {
+	m.currentQuery = query
 	return m
 }

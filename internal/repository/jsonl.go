@@ -97,12 +97,13 @@ func (r *JSONLRepository) List(ctx context.Context) ([]*domain.Conversation, err
 	conversations := make([]*domain.Conversation, 0, len(r.metadata))
 	for _, meta := range r.metadata {
 		conv := &domain.Conversation{
-			ID:        meta.ID,
-			Title:     meta.Title,
-			Model:     "unknown", // Model info not stored in metadata, will be updated on full load
-			CreatedAt: meta.CreatedAt,
-			UpdatedAt: meta.UpdatedAt,
-			Messages:  []*domain.Message{}, // Empty for metadata-only load
+			ID:          meta.ID,
+			Title:       meta.Title,
+			Model:       "unknown", // Model info not stored in metadata, will be updated on full load
+			ProjectPath: meta.ProjectPath,
+			CreatedAt:   meta.CreatedAt,
+			UpdatedAt:   meta.UpdatedAt,
+			Messages:    []*domain.Message{}, // Empty for metadata-only load
 		}
 		conversations = append(conversations, conv)
 	}
@@ -336,12 +337,13 @@ func (r *JSONLRepository) loadConversation(meta *conversationMetadata) (*domain.
 	defer file.Close()
 
 	conv := &domain.Conversation{
-		ID:        meta.ID,
-		Title:     meta.Title,
-		Model:     "unknown", // Model info not available from file metadata
-		CreatedAt: meta.CreatedAt,
-		UpdatedAt: meta.UpdatedAt,
-		Messages:  make([]*domain.Message, 0),
+		ID:          meta.ID,
+		Title:       meta.Title,
+		Model:       "unknown", // Model info not available from file metadata
+		ProjectPath: meta.ProjectPath,
+		CreatedAt:   meta.CreatedAt,
+		UpdatedAt:   meta.UpdatedAt,
+		Messages:    make([]*domain.Message, 0),
 	}
 
 	scanner := bufio.NewScanner(file)

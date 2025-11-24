@@ -136,16 +136,59 @@ func (m Model) renderCenter() string {
 func (m Model) renderCenterContent() string {
 	switch m.state {
 	case ViewList:
+		if m.listView != nil {
+			return m.listView.View()
+		}
 		return "Conversations\n──────────────\n\n(Loading...)"
 	case ViewDetail:
-		return "Message Detail\n───────────────\n\n(Phase 2)"
+		if m.detailView != nil {
+			return m.detailView.View()
+		}
+		return "Message Detail\n───────────────\n\n(Loading...)"
 	case ViewSearch:
-		return "Search Results\n───────────────\n\n(Phase 2)"
+		return m.renderSearchView()
 	case ViewStats:
 		return "Statistics\n───────────────\n\n(Phase 2)"
 	default:
 		return "Unknown View"
 	}
+}
+
+// renderSearchView renders the search view with search bar and results.
+func (m Model) renderSearchView() string {
+	title := lipgloss.NewStyle().Bold(true).Render("Search Conversations")
+	separator := "─────────────────────────"
+
+	var content string
+	if m.searchBar != nil {
+		content = fmt.Sprintf("%s\n%s\n\n%s\n\n", title, separator, m.searchBar.View())
+	} else {
+		content = fmt.Sprintf("%s\n%s\n\n", title, separator)
+	}
+
+	// Show results or hints
+	if m.isSearchActive && len(m.searchResults) > 0 {
+		content += fmt.Sprintf("Results (%d):\n", len(m.searchResults))
+		for i, conv := range m.searchResults {
+			if i >= 10 { // Show first 10
+				content += fmt.Sprintf("... and %d more\n", len(m.searchResults)-10)
+				break
+			}
+			content += fmt.Sprintf("• %s\n", conv.Title)
+		}
+	} else if m.isSearchActive && len(m.searchResults) == 0 {
+		content += "No results found.\n"
+	} else {
+		content += "Press Ctrl+F to search • Enter to execute • Esc to cancel\n\n"
+		content += "Examples:\n"
+		content += "  • python - simple text search\n"
+		content += "  • title:\"my chat\" - search in title\n"
+		content += "  • tokens:>5000 - filter by token count\n"
+		content += "  • python AND rust - boolean AND\n"
+		content += "  • (ai OR ml) AND NOT archived - complex query\n"
+	}
+
+	return content
 }
 
 // renderRight renders the right pane.
@@ -178,7 +221,7 @@ func (m Model) renderFooter() string {
 		Foreground(lipgloss.Color("59")). // Gray
 		Padding(0, 1)
 
-	hints := "^C:quit  Tab:focus  Esc:back  ^P:palette"
+	hints := "^C:quit  ^F:search  Tab:focus  Esc:back  ^P:palette"
 
 	return footerStyle.Render(hints)
 }
