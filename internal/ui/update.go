@@ -161,9 +161,13 @@ func (m Model) handleWindowSize(msg tea.WindowSizeMsg) Model {
 		centerWidth = 20
 	}
 
-	// Forward dimensions to sidebar
+	// Forward dimensions to sidebar with safe height calculation
+	sidebarHeight := m.height - 4 // -4 for header/footer
+	if sidebarHeight < 0 {
+		sidebarHeight = 0
+	}
 	if m.sidebar != nil {
-		m.sidebar = m.sidebar.SetSize(sidebarWidth, m.height-4) // -4 for header/footer
+		m.sidebar = m.sidebar.SetSize(sidebarWidth, sidebarHeight)
 	}
 
 	return m
