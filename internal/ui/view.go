@@ -115,7 +115,12 @@ func (m Model) renderSidebar() string {
 		BorderForeground(lipgloss.Color("59")). // Gray
 		Padding(1, 1)
 
-	content := "Projects\n─────────\n\n(Phase 2)"
+	var content string
+	if m.sidebar != nil {
+		content = m.sidebar.View()
+	} else {
+		content = "Projects\n─────────\n\n(Loading...)"
+	}
 
 	return sidebarStyle.Render(content)
 }
@@ -198,7 +203,12 @@ func (m Model) renderRight() string {
 		BorderForeground(lipgloss.Color("59")). // Gray
 		Padding(1, 1)
 
-	content := "Metadata\n─────────\n\n(Phase 2)"
+	var content string
+	if m.metadata != nil {
+		content = m.metadata.View()
+	} else {
+		content = "Metadata\n─────────\n\n(Loading...)"
+	}
 
 	return rightStyle.Render(content)
 }

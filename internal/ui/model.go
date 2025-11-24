@@ -36,9 +36,11 @@ type Model struct {
 	height int
 
 	// Sub-views
+	sidebar    *components.Sidebar
 	listView   *views.ListView
 	detailView *views.DetailView
 	searchBar  *components.SearchBar
+	metadata   *components.Metadata
 
 	// Conversation list state
 	conversations  []*domain.Conversation
@@ -54,17 +56,21 @@ type Model struct {
 
 // NewModel creates and returns a new root Model.
 func NewModel(repo repository.Repository) Model {
+	sidebar := components.NewSidebar()
 	listView := views.NewListView(repo)
 	searchEngine := search.NewEngine(repo)
 	searchBar := components.NewSearchBar()
+	metadata := components.NewMetadata()
 	return Model{
 		repository:   repo,
 		searchEngine: searchEngine,
 		state:        ViewList,
 		width:        0,
 		height:       0,
+		sidebar:      sidebar,
 		listView:     listView,
 		searchBar:    searchBar,
+		metadata:     metadata,
 	}
 }
 
@@ -154,9 +160,19 @@ func (m Model) SetError(err error) Model {
 	return m
 }
 
+// Sidebar returns the sidebar component.
+func (m Model) Sidebar() *components.Sidebar {
+	return m.sidebar
+}
+
 // SearchBar returns the search bar component.
 func (m Model) SearchBar() *components.SearchBar {
 	return m.searchBar
+}
+
+// Metadata returns the metadata component.
+func (m Model) Metadata() *components.Metadata {
+	return m.metadata
 }
 
 // SearchResults returns the current search results.

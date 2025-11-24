@@ -3,9 +3,11 @@ package ui
 
 import (
 	"context"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/TrevorS/claudex/internal/domain"
 	"github.com/TrevorS/claudex/internal/ui/components"
 	"github.com/TrevorS/claudex/internal/ui/views"
 )
@@ -23,6 +25,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.conversations = msg.Conversations
+		// Update sidebar with conversations
+		if m.sidebar != nil {
+			m.sidebar = m.sidebar.SetConversations(m.conversations)
+		}
 		// Forward to ListView
 		if m.listView != nil && m.state == ViewList {
 			m.listView, cmd = m.listView.Update(msg)
@@ -37,6 +43,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Create and initialize DetailView
 			m.detailView = views.NewDetailView(m.repository, msg.Conversation.ID)
 			cmd = m.detailView.Init()
+			// Update metadata panel
+			if m.metadata != nil {
+				m.metadata = m.metadata.SetConversation(msg.Conversation)
+			}
 		}
 		return m, cmd
 
@@ -44,6 +54,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Handle conversation loaded from DetailView
 		if m.detailView != nil && m.state == ViewDetail {
 			m.detailView, cmd = m.detailView.Update(msg)
+			// Also update metadata with fully loaded conversation
+			if msg.Conversation != nil && m.metadata != nil {
+				m.metadata = m.metadata.SetConversation(msg.Conversation)
+			}
 		}
 		return m, cmd
 
@@ -78,6 +92,31 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.searchBar, cmd = m.searchBar.Update(msg)
 		}
 		return m, cmd
+
+	case components.ProjectSelectedMsg:
+		// Handle project selection from sidebar
+		// Filter conversations to selected project
+		var filtered []*domain.Conversation
+		for _, conv := range m.conversations {
+			if conv.ProjectPath == msg.ProjectPath {
+				filtered = append(filtered, conv)
+			}
+		}
+		m = m.SetSearchResults(filtered).SetSearchActive(true)
+		if m.listView != nil {
+			m.listView = m.listView.SetConversations(filtered)
+		}
+		return m, nil
+
+	case components.FilterSelectedMsg:
+		// Handle filter selection from sidebar
+		// Filter conversations based on selected filter
+		filtered := m.filterConversationsByFilter(string(msg.Filter))
+		m = m.SetSearchResults(filtered).SetSearchActive(true)
+		if m.listView != nil {
+			m.listView = m.listView.SetConversations(filtered)
+		}
+		return m, nil
 
 	case tea.WindowSizeMsg:
 		// Handle terminal resize
@@ -166,6 +205,14 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 			return m, cmd
 		}
 		if m.listView != nil && m.state == ViewList {
+			// Route to sidebar for keyboard input
+			if m.sidebar != nil {
+				newSidebar, cmd := m.sidebar.Update(msg)
+				m.sidebar = newSidebar
+				if cmd != nil {
+					return m, cmd
+				}
+			}
 			m.listView, cmd = m.listView.Update(msg)
 			return m, cmd
 		}
@@ -192,4 +239,40 @@ func (m Model) executeSearch(query string) tea.Cmd {
 			Query:   query,
 		}
 	}
+}
+
+// filterConversationsByFilter filters conversations based on the selected filter.
+func (m Model) filterConversationsByFilter(filter string) []*domain.Conversation {
+	now := time.Now()
+	var filtered []*domain.Conversation
+
+	for _, conv := range m.conversations {
+		switch filter {
+		case "All":
+			filtered = append(filtered, conv)
+		case "Today":
+			// Conversations from today
+			if conv.CreatedAt.Year() == now.Year() &&
+				conv.CreatedAt.Month() == now.Month() &&
+				conv.CreatedAt.Day() == now.Day() {
+				filtered = append(filtered, conv)
+			}
+		case "This Week":
+			// Conversations from last 7 days
+			if time.Since(conv.CreatedAt) <= 7*24*time.Hour {
+				filtered = append(filtered, conv)
+			}
+		case "This Month":
+			// Conversations from last 30 days
+			if time.Since(conv.CreatedAt) <= 30*24*time.Hour {
+				filtered = append(filtered, conv)
+			}
+		}
+	}
+
+	if len(filtered) == 0 {
+		// If no results, return all conversations
+		return m.conversations
+	}
+	return filtered
 }
