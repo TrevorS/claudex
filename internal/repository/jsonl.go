@@ -100,15 +100,15 @@ func (r *JSONLRepository) List(ctx context.Context) ([]*domain.Conversation, err
 		messageCount := meta.MessageCount
 		zero := int64(0) // Placeholder for token count (not available from metadata alone)
 		conv := &domain.Conversation{
-			ID:                  meta.ID,
-			Title:               meta.Title,
-			Model:               "unknown", // Model info not stored in metadata, will be updated on full load
-			ProjectPath:         meta.ProjectPath,
-			CreatedAt:           meta.CreatedAt,
-			UpdatedAt:           meta.UpdatedAt,
-			Messages:            []*domain.Message{}, // Empty for metadata-only load
-			CachedMessageCount:  &messageCount,       // Use metadata message count
-			CachedTotalTokens:   &zero,               // Tokens not available from metadata
+			ID:                 meta.ID,
+			Title:              meta.Title,
+			Model:              "unknown", // Model info not stored in metadata, will be updated on full load
+			ProjectPath:        meta.ProjectPath,
+			CreatedAt:          meta.CreatedAt,
+			UpdatedAt:          meta.UpdatedAt,
+			Messages:           []*domain.Message{}, // Empty for metadata-only load
+			CachedMessageCount: &messageCount,       // Use metadata message count
+			CachedTotalTokens:  &zero,               // Tokens not available from metadata
 		}
 		conversations = append(conversations, conv)
 	}

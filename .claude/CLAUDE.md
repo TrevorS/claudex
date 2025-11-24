@@ -123,6 +123,29 @@ make clean
 - No circular dependencies between packages
 - Domain layer must not import from other layers (pure business logic)
 
+## Claude Code Skills
+
+This project includes custom Skills for optimized development workflows. These are available when working with Claude Code and can be invoked by asking directly:
+
+### Available Skills
+
+1. **dev-mode** - Live reload with Air during UI development
+   - Use when: Developing Bubble Tea components, iterating on layouts, working on view logic
+   - Command: `make dev` (auto-rebuilds on file changes)
+   - Fastest feedback loop for UI development
+
+2. **debug-ui** - Bubble Tea message flow inspection
+   - Use when: Debugging UI behavior, investigating keyboard handling, tracking state changes
+   - Command: `make dev-debug` (includes live reload + debug logging)
+   - Logs written to `debug.log`, watch with: `tail -f debug.log`
+
+3. **capture-ui** - Automated screenshots and recordings with VHS
+   - Use when: Creating documentation, recording feature demos, capturing bug reproductions
+   - Create tapes in: `testdata/vhs/` directory
+   - Commands: `make vhs-test` (run all tapes), `make vhs-record` (generate GIFs)
+
+**Location:** `.claude/skills/` - These are Project Skills, available to all team members
+
 ## Testing Strategy
 
 - **Test Coverage Target:** 85%+ for domain/search, 75%+ for other layers

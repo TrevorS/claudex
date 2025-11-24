@@ -8,15 +8,15 @@ import (
 
 // Conversation represents a conversation with Claude.
 type Conversation struct {
-	ID                  string
-	Title               string
-	Model               string
-	ProjectPath         string // Project path (e.g., "foo/bar" decoded from filesystem "-foo-bar")
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
-	Messages            []*Message
-	CachedMessageCount  *int   // Optional cached message count from metadata (for lazy-loaded conversations)
-	CachedTotalTokens   *int64 // Optional cached total tokens from metadata
+	ID                 string
+	Title              string
+	Model              string
+	ProjectPath        string // Project path (e.g., "foo/bar" decoded from filesystem "-foo-bar")
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	Messages           []*Message
+	CachedMessageCount *int   // Optional cached message count from metadata (for lazy-loaded conversations)
+	CachedTotalTokens  *int64 // Optional cached total tokens from metadata
 }
 
 // NewConversation creates a new Conversation with initialized message slice.
