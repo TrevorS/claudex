@@ -88,17 +88,31 @@ go test -v ./internal/domain -run TestConversationAddMessage
 
 # Format code
 make format
-# or: gofmt -s -w .
 
 # Lint code
 make vet
-# or: go vet ./...
 
 # Run all checks (format, vet, test)
 make check
 
 # Clean build artifacts
 make clean
+```
+
+### UI Development (Rapid Iteration)
+
+```bash
+# Auto-rebuild on file changes (sub-second feedback loop)
+make dev
+
+# Same as dev, but also logs all Bubble Tea messages to debug.log
+make dev-debug
+
+# Run VHS tapes and capture UI screenshots
+make vhs-test
+
+# Record VHS demos for documentation
+make vhs-record
 ```
 
 ### Project Structure Guidelines
@@ -125,26 +139,13 @@ make clean
 
 ## Claude Code Skills
 
-This project includes custom Skills for optimized development workflows. These are available when working with Claude Code and can be invoked by asking directly:
+Three project skills in `.claude/skills/` provide guidance for common development tasks:
 
-### Available Skills
+- **dev-mode** - Live reload with Air (`make dev`) for rapid UI iteration
+- **debug-ui** - Bubble Tea debug logging (`make dev-debug`) for message flow inspection
+- **capture-ui** - VHS terminal recordings for documentation and demos
 
-1. **dev-mode** - Live reload with Air during UI development
-   - Use when: Developing Bubble Tea components, iterating on layouts, working on view logic
-   - Command: `make dev` (auto-rebuilds on file changes)
-   - Fastest feedback loop for UI development
-
-2. **debug-ui** - Bubble Tea message flow inspection
-   - Use when: Debugging UI behavior, investigating keyboard handling, tracking state changes
-   - Command: `make dev-debug` (includes live reload + debug logging)
-   - Logs written to `debug.log`, watch with: `tail -f debug.log`
-
-3. **capture-ui** - Automated screenshots and recordings with VHS
-   - Use when: Creating documentation, recording feature demos, capturing bug reproductions
-   - Create tapes in: `testdata/vhs/` directory
-   - Commands: `make vhs-test` (run all tapes), `make vhs-record` (generate GIFs)
-
-**Location:** `.claude/skills/` - These are Project Skills, available to all team members
+These skills are automatically available when working with Claude Code and can be invoked by asking about UI development, debugging, or creating demos.
 
 ## Testing Strategy
 
