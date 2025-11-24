@@ -150,7 +150,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // handleWindowSize updates the model with new terminal dimensions.
 func (m Model) handleWindowSize(msg tea.WindowSizeMsg) Model {
-	return m.SetSize(msg.Width, msg.Height)
+	m = m.SetSize(msg.Width, msg.Height)
+
+	// Calculate pane widths for three-pane layout
+	sidebarWidth := 22
+	rightWidth := 38
+	centerWidth := m.width - sidebarWidth - rightWidth - 6 // Account for borders/spacing
+
+	if centerWidth < 20 {
+		centerWidth = 20
+	}
+
+	// Forward dimensions to sidebar
+	if m.sidebar != nil {
+		m.sidebar = m.sidebar.SetSize(sidebarWidth, m.height-4) // -4 for header/footer
+	}
+
+	return m
 }
 
 // handleKeyPress handles global keyboard shortcuts.
