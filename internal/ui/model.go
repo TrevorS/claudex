@@ -22,6 +22,15 @@ const (
 	ViewPalette
 )
 
+// FocusPane represents which pane has keyboard focus.
+type FocusPane int
+
+const (
+	FocusSidebar FocusPane = iota
+	FocusCenter
+	FocusRight
+)
+
 // Model is the root Bubble Tea model managing global application state.
 type Model struct {
 	// Core dependencies
@@ -29,7 +38,8 @@ type Model struct {
 	searchEngine *search.Engine
 
 	// View state
-	state ViewState
+	state     ViewState
+	focusPane FocusPane
 
 	// Window dimensions
 	width  int
@@ -65,6 +75,7 @@ func NewModel(repo repository.Repository) Model {
 		repository:   repo,
 		searchEngine: searchEngine,
 		state:        ViewList,
+		focusPane:    FocusSidebar,
 		width:        0,
 		height:       0,
 		sidebar:      sidebar,
@@ -96,6 +107,17 @@ func (m Model) State() ViewState {
 // SetState sets the current view state.
 func (m Model) SetState(state ViewState) Model {
 	m.state = state
+	return m
+}
+
+// FocusPane returns the current focused pane.
+func (m Model) FocusPane() FocusPane {
+	return m.focusPane
+}
+
+// SetFocusPane sets the current focused pane.
+func (m Model) SetFocusPane(pane FocusPane) Model {
+	m.focusPane = pane
 	return m
 }
 

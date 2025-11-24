@@ -174,8 +174,8 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyTab:
-		// Tab key for focus switching (no-op in Phase 1)
-		return m, nil
+		// Tab key for focus switching between panes
+		return m.handleTabKey(), nil
 
 	case tea.KeyCtrlP:
 		// Command palette (Phase 2+)
@@ -275,4 +275,23 @@ func (m Model) filterConversationsByFilter(filter string) []*domain.Conversation
 		return m.conversations
 	}
 	return filtered
+}
+
+// handleTabKey cycles focus between panes: Sidebar -> Center -> Right -> Sidebar.
+func (m Model) handleTabKey() Model {
+	// Only allow Tab navigation in list view (not search, detail, etc.)
+	if m.state != ViewList {
+		return m
+	}
+
+	// Cycle to next pane
+	nextFocus := (m.focusPane + 1) % 3
+	m = m.SetFocusPane(FocusPane(nextFocus))
+
+	// Update component focus states
+	if m.sidebar != nil {
+		m.sidebar = m.sidebar.SetFocus(m.focusPane == FocusSidebar)
+	}
+
+	return m
 }
