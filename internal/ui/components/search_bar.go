@@ -138,11 +138,11 @@ func (s *SearchBar) View() string {
 	var status string
 
 	if s.hasError {
-		status = s.errorStyle.Render(fmt.Sprintf(" ❌ %s", s.errorMsg))
+		status = s.errorStyle.Render(fmt.Sprintf(" ✗ %s", s.errorMsg))
 	} else if s.hasResults {
 		status = s.normalStyle.Render(fmt.Sprintf(" ✓ %d results", s.resultCount))
 	} else if s.input.Value() != "" {
-		status = s.normalStyle.Render(" 🔍 Searching...")
+		status = s.normalStyle.Render(" ○ Searching...")
 	}
 
 	return s.input.View() + status

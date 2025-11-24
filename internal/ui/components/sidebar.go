@@ -67,8 +67,8 @@ func NewSidebar() *Sidebar {
 		selectedProjectIndex: -1, // -1 means no selection (all projects)
 		selectedFilter:       FilterAll,
 		hasFocus:             false,
-		viewWidth:            0,
-		viewHeight:           0,
+		viewWidth:            24, // Default width until WindowSizeMsg arrives (28 - 4 for border)
+		viewHeight:           20, // Default height until WindowSizeMsg arrives
 	}
 }
 
@@ -105,8 +105,14 @@ func (s *Sidebar) handleKeyPress(msg tea.KeyMsg) (*Sidebar, tea.Cmd) {
 		return s.moveSelection(1), nil
 
 	case tea.KeyEnter:
-		// Send project selected message
-		if len(s.projects) > 0 && s.selectedProjectIndex < len(s.projects) {
+		// Handle project selection
+		if s.selectedProjectIndex == -1 {
+			// "All" selected - clear filter
+			return s, func() tea.Msg {
+				return ProjectSelectedMsg{ProjectPath: ""} // Empty path = all projects
+			}
+		}
+		if s.selectedProjectIndex >= 0 && s.selectedProjectIndex < len(s.projects) {
 			project := s.projects[s.selectedProjectIndex]
 			return s, func() tea.Msg {
 				return ProjectSelectedMsg{ProjectPath: project}
@@ -120,13 +126,24 @@ func (s *Sidebar) handleKeyPress(msg tea.KeyMsg) (*Sidebar, tea.Cmd) {
 			return FocusNextMsg{}
 		}
 
+	case tea.KeyEsc:
+		// Clear project filter, return to "All"
+		newS := *s
+		newS.selectedProjectIndex = -1
+		return &newS, nil
+
 	case tea.KeyRunes:
 		if len(msg.Runes) > 0 {
 			switch msg.Runes[0] {
+			case 'j':
+				// Vim-style down
+				return s.moveSelection(1), nil
+			case 'k':
+				// Vim-style up
+				return s.moveSelection(-1), nil
 			case 'f', 'F':
-				// Cycle through filters
-				return s.cycleFilter(), nil
-
+				// Cycle through filters (also handled globally in update.go)
+				return s.CycleFilter(), nil
 			case '1', '2', '3', '4', '5', '6', '7', '8', '9':
 				// Jump to project by number
 				index := int(msg.Runes[0] - '1') // '1' -> index 0
@@ -141,13 +158,14 @@ func (s *Sidebar) handleKeyPress(msg tea.KeyMsg) (*Sidebar, tea.Cmd) {
 }
 
 // moveSelection moves the project selection up or down.
+// Selection -1 = "All projects", 0+ = specific project
 func (s *Sidebar) moveSelection(delta int) *Sidebar {
 	newS := *s
 	newIndex := s.selectedProjectIndex + delta
 
-	// Clamp to valid range
-	if newIndex < 0 {
-		newIndex = 0
+	// Clamp to valid range: -1 (All) to len(projects)-1
+	if newIndex < -1 {
+		newIndex = -1
 	}
 	if newIndex >= len(s.projects) {
 		newIndex = len(s.projects) - 1
@@ -173,8 +191,8 @@ func (s *Sidebar) jumpToProject(index int) *Sidebar {
 	return &newS
 }
 
-// cycleFilter cycles through the available filters.
-func (s *Sidebar) cycleFilter() *Sidebar {
+// CycleFilter cycles through the available filters (exported for global key handling).
+func (s *Sidebar) CycleFilter() *Sidebar {
 	newS := *s
 
 	filters := []FilterType{FilterAll, FilterToday, FilterThisWeek, FilterThisMonth}
@@ -193,10 +211,11 @@ func (s *Sidebar) cycleFilter() *Sidebar {
 }
 
 // View renders the Sidebar as a string.
+// Note: Border styling is handled by the parent layout (view.go), not the component.
 func (s *Sidebar) View() string {
-	if s.viewWidth < 18 {
+	if s.viewWidth < 10 {
 		// Too narrow to render properly
-		return s.renderCollapsed()
+		return "..."
 	}
 
 	var b strings.Builder
@@ -211,31 +230,14 @@ func (s *Sidebar) View() string {
 
 	// Render filters
 	b.WriteString(s.renderFilters())
-	b.WriteString("\n\n")
 
-	// Render footer hints
-	b.WriteString(s.renderFooter())
+	// Only show footer hints if there's room and we have focus
+	if s.hasFocus && s.viewHeight > 15 {
+		b.WriteString("\n\n")
+		b.WriteString(s.renderFooter())
+	}
 
-	// Apply border styling
-	style := lipgloss.NewStyle().
-		Width(s.viewWidth).
-		Height(s.viewHeight).
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(s.borderColor()).
-		Padding(1)
-
-	return style.Render(b.String())
-}
-
-// renderCollapsed renders a minimal view when width is too narrow.
-func (s *Sidebar) renderCollapsed() string {
-	return lipgloss.NewStyle().
-		Width(s.viewWidth).
-		Height(s.viewHeight).
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("240")).
-		Padding(1).
-		Render("...")
+	return b.String()
 }
 
 // renderHeader renders the "Projects" header.
@@ -249,13 +251,25 @@ func (s *Sidebar) renderHeader() string {
 
 // renderProjects renders the list of projects with metadata.
 func (s *Sidebar) renderProjects() string {
-	if len(s.projects) == 0 {
-		return lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240")).
-			Render("No projects")
-	}
-
 	var b strings.Builder
+
+	// "All" option (selection index -1)
+	allSelected := s.selectedProjectIndex == -1 && s.hasFocus
+	allStyle := lipgloss.NewStyle()
+	if allSelected {
+		allStyle = allStyle.Bold(true).Foreground(lipgloss.Color("6"))
+	}
+	prefix := "  "
+	if allSelected {
+		prefix = "> "
+	}
+	allLine := fmt.Sprintf("%sAll (%d conv)", prefix, len(s.conversations))
+	b.WriteString(allStyle.Render(allLine))
+	b.WriteString("\n")
+
+	if len(s.projects) == 0 {
+		return b.String()
+	}
 
 	for i, project := range s.projects {
 		isSelected := i == s.selectedProjectIndex && s.hasFocus
@@ -280,20 +294,20 @@ func (s *Sidebar) renderProjectLine(path string, meta ProjectMeta, isSelected bo
 	// Build the display text
 	var b strings.Builder
 
-	// Icon
-	icon := "📁"
+	// Icon (using ASCII to avoid width calculation issues with emojis)
+	icon := ">"
 	if path == "" {
-		icon = "📄"
+		icon = "-"
 		path = "(no project)"
 	}
 
-	// Truncate path if too long
+	// Truncate path from START if too long (show end of path which is more useful)
 	maxPathLen := s.viewWidth - 10
 	if maxPathLen < 5 {
 		maxPathLen = 5
 	}
 	if len(path) > maxPathLen {
-		path = path[:maxPathLen-3] + "..."
+		path = "..." + path[len(path)-(maxPathLen-3):]
 	}
 
 	b.WriteString(fmt.Sprintf("%s %s\n", icon, path))
@@ -374,12 +388,10 @@ func (s *Sidebar) renderFooter() string {
 	return style.Render(hints)
 }
 
-// borderColor returns the border color based on focus state.
-func (s *Sidebar) borderColor() lipgloss.Color {
-	if s.hasFocus {
-		return lipgloss.Color("6") // Cyan for focused
-	}
-	return lipgloss.Color("240") // Gray for unfocused
+// HasFocus returns whether the sidebar has keyboard focus.
+// Used by the parent layout to determine border color.
+func (s *Sidebar) HasFocus() bool {
+	return s.hasFocus
 }
 
 // formatProjectPath formats a project path for display.

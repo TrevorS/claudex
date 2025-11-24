@@ -41,6 +41,11 @@ type SelectConversationMsg struct {
 	Conversation *domain.Conversation
 }
 
+// CursorMovedMsg is sent when the cursor moves to a different conversation.
+type CursorMovedMsg struct {
+	Conversation *domain.Conversation
+}
+
 // NewListView creates a new ListView with the given repository.
 func NewListView(repo repository.Repository) *ListView {
 	return &ListView{
@@ -102,24 +107,26 @@ func (v *ListView) handleKeyPress(msg tea.KeyMsg) (*ListView, tea.Cmd) {
 	switch msg.Type {
 
 	case tea.KeyUp:
-		return v.moveSelection(-1), nil
+		return v.moveSelectionWithCmd(-1)
 
 	case tea.KeyDown:
-		return v.moveSelection(1), nil
+		return v.moveSelectionWithCmd(1)
 
 	case tea.KeyHome:
-		return v.SetSelectedIndex(0), nil
+		newView := v.SetSelectedIndex(0)
+		return newView, v.sendCursorMovedCmd(newView)
 
 	case tea.KeyEnd:
-		return v.SetSelectedIndex(len(v.conversations) - 1), nil
+		newView := v.SetSelectedIndex(len(v.conversations) - 1)
+		return newView, v.sendCursorMovedCmd(newView)
 
 	case tea.KeyPgUp:
 		pageSize := v.calculatePageSize()
-		return v.moveSelection(-pageSize), nil
+		return v.moveSelectionWithCmd(-pageSize)
 
 	case tea.KeyPgDown:
 		pageSize := v.calculatePageSize()
-		return v.moveSelection(pageSize), nil
+		return v.moveSelectionWithCmd(pageSize)
 
 	case tea.KeyEnter:
 		selected := v.SelectedConversation()
@@ -134,9 +141,9 @@ func (v *ListView) handleKeyPress(msg tea.KeyMsg) (*ListView, tea.Cmd) {
 		if len(msg.Runes) > 0 {
 			switch msg.Runes[0] {
 			case 'j':
-				return v.moveSelection(1), nil
+				return v.moveSelectionWithCmd(1)
 			case 'k':
-				return v.moveSelection(-1), nil
+				return v.moveSelectionWithCmd(-1)
 			}
 		}
 		return v, nil
@@ -146,10 +153,37 @@ func (v *ListView) handleKeyPress(msg tea.KeyMsg) (*ListView, tea.Cmd) {
 	}
 }
 
+// sendCursorMovedCmd returns a command to send CursorMovedMsg for the current selection.
+func (v *ListView) sendCursorMovedCmd(newView *ListView) tea.Cmd {
+	conv := newView.SelectedConversation()
+	if conv != nil {
+		return func() tea.Msg {
+			return CursorMovedMsg{Conversation: conv}
+		}
+	}
+	return nil
+}
+
 // moveSelection moves the selection by delta and clamps to valid bounds.
+// Returns the new view and a command to notify about cursor movement.
+func (v *ListView) moveSelectionWithCmd(delta int) (*ListView, tea.Cmd) {
+	newView := v.SetSelectedIndex(v.selectedIndex + delta)
+
+	// Send cursor moved message if selection actually changed
+	if newView.selectedIndex != v.selectedIndex {
+		conv := newView.SelectedConversation()
+		if conv != nil {
+			return newView, func() tea.Msg {
+				return CursorMovedMsg{Conversation: conv}
+			}
+		}
+	}
+	return newView, nil
+}
+
+// moveSelection moves the selection by delta (legacy, doesn't send message).
 func (v *ListView) moveSelection(delta int) *ListView {
-	newIndex := v.selectedIndex + delta
-	return v.SetSelectedIndex(newIndex)
+	return v.SetSelectedIndex(v.selectedIndex + delta)
 }
 
 // calculatePageSize returns the number of items that fit on one page.
@@ -180,33 +214,60 @@ func (v *ListView) renderEmptyState() string {
 	return "No conversations found.\n\nPress Ctrl+C to exit."
 }
 
-// renderTable renders the conversation table.
+// renderTable renders the conversation list with pagination.
 func (v *ListView) renderTable() string {
 	sorted := v.getSortedConversations()
-
-	// Build table rows
-	rows := make([]table.Row, 0, len(sorted))
-	for i, conv := range sorted {
-		row := v.buildRow(conv, i)
-		rows = append(rows, row)
+	if len(sorted) == 0 {
+		return "No conversations"
 	}
 
-	// Create columns based on width
-	columns := v.buildColumns()
-
-	// Create table model
-	tbl := table.New(columns).
-		WithRows(rows).
-		Focused(true).
-		WithPageSize(v.calculatePageSize()).
-		WithTargetWidth(v.width)
-
-	// Highlight selected row
-	if v.selectedIndex >= 0 && v.selectedIndex < len(rows) {
-		tbl = tbl.WithHighlightedRow(v.selectedIndex)
+	var b strings.Builder
+	pageSize := v.calculatePageSize()
+	startIdx := (v.selectedIndex / pageSize) * pageSize
+	endIdx := startIdx + pageSize
+	if endIdx > len(sorted) {
+		endIdx = len(sorted)
 	}
 
-	return tbl.View()
+	// Calculate display width for title (leave room for count and date)
+	// Format: "> 123 2024-01-15 Title..." = 2 + 3 + 1 + 11 + 1 = 18 chars overhead
+	titleWidth := v.width - 18
+	if titleWidth < 15 {
+		titleWidth = 15
+	}
+	if titleWidth > 70 {
+		titleWidth = 70
+	}
+
+	for i := startIdx; i < endIdx; i++ {
+		conv := sorted[i]
+		isSelected := i == v.selectedIndex
+
+		// Format fields (compact)
+		msgs := fmt.Sprintf("%3d", conv.MessageCount())
+		date := v.formatTimestamp(conv.UpdatedAt)
+		title := conv.Title
+		if len(title) > titleWidth {
+			title = title[:titleWidth-3] + "..."
+		}
+
+		// Build line with selection indicator (single spaces)
+		prefix := "  "
+		if isSelected {
+			prefix = "> "
+		}
+		line := fmt.Sprintf("%s%s %s %s", prefix, msgs, date, title)
+
+		b.WriteString(line)
+		b.WriteString("\n")
+	}
+
+	// Pagination info
+	totalPages := (len(sorted) + pageSize - 1) / pageSize
+	currentPage := (v.selectedIndex / pageSize) + 1
+	b.WriteString(fmt.Sprintf("\nPage %d/%d (%d total)", currentPage, totalPages, len(sorted)))
+
+	return b.String()
 }
 
 // buildColumns creates table columns based on terminal width.
@@ -245,7 +306,7 @@ func (v *ListView) buildRow(conv *domain.Conversation, index int) table.Row {
 	if len(title) > 33 {
 		title = title[:30] + "..."
 	}
-	messages := fmt.Sprintf("%d", len(conv.Messages))
+	messages := fmt.Sprintf("%d", conv.MessageCount())
 	tokens := v.formatTokens(conv.TotalTokens())
 	model := v.formatModel(conv.Model)
 
@@ -260,26 +321,35 @@ func (v *ListView) buildRow(conv *domain.Conversation, index int) table.Row {
 	return table.NewRow(rowData)
 }
 
-// formatTimestamp formats a timestamp for display.
+// formatTimestamp formats a timestamp for display with fixed width (11 chars).
 func (v *ListView) formatTimestamp(ts time.Time) string {
+	// Handle zero timestamps
+	if ts.IsZero() {
+		return fmt.Sprintf("%-11s", "Unknown")
+	}
+
 	now := time.Now()
 	diff := now.Sub(ts)
 
+	var result string
 	switch {
 	case diff < time.Minute:
-		return "just now"
+		result = "just now"
 	case diff < time.Hour:
 		mins := int(diff.Minutes())
-		return fmt.Sprintf("%dm ago", mins)
+		result = fmt.Sprintf("%dm ago", mins)
 	case diff < 24*time.Hour:
 		hours := int(diff.Hours())
-		return fmt.Sprintf("%dh ago", hours)
+		result = fmt.Sprintf("%dh ago", hours)
 	case diff < 7*24*time.Hour:
 		days := int(diff.Hours() / 24)
-		return fmt.Sprintf("%dd ago", days)
+		result = fmt.Sprintf("%dd ago", days)
 	default:
-		return ts.Format("2006-01-02")
+		result = ts.Format("2006-01-02")
 	}
+
+	// Pad to fixed width for column alignment
+	return fmt.Sprintf("%-11s", result)
 }
 
 // formatTokens formats token count for display.

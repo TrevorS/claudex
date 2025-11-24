@@ -63,6 +63,14 @@ Main → App (bootstrap) → Repository (load conversations) → UI Model
 4. **Lazy Loading** - Full message content only loaded when viewing a conversation, not at startup
 5. **Three-Pane Layout** - Sidebar (projects), center (conversations/messages), right (metadata) with responsive handling
 
+### Known Gotchas
+
+1. **Lipgloss Width() after Border()** - When composing multi-pane layouts with lipgloss, apply `Width()` and `Height()` constraints BEFORE adding borders/padding, not after. If you render content with borders first, then try to constrain with `Width()`, the already-bordered content may exceed the constraint and break layout calculations. See `view.go` `renderXxxWithSize()` functions for the correct pattern.
+
+2. **bubble-table breaks lipgloss layouts** - The `bubble-table` library's ANSI escape sequences confuse lipgloss width calculations. We replaced it with simple string rendering in `ListView`. If you need tables, use plain text formatting instead.
+
+3. **Emoji width calculation** - Emojis can cause width miscalculations in terminal layouts. Prefer ASCII characters for UI elements (e.g., `>` instead of 📁).
+
 ## Development Workflow
 
 ### Common Commands

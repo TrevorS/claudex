@@ -272,8 +272,14 @@ func TestSidebar_SelectProject_DoesNotGoOutOfBounds(t *testing.T) {
 	// Should have 4 projects (indices 0-3)
 	assert.Len(t, s.projects, 4)
 
-	// Try to go up from 0
+	// Start at "All" (-1), go up should stay at -1
+	s.selectedProjectIndex = -1
 	newS, _ := s.Update(tea.KeyMsg{Type: tea.KeyUp})
+	s = newS
+	assert.Equal(t, -1, s.selectedProjectIndex, "Going up from 'All' should stay at 'All'")
+
+	// Going down from All should go to 0
+	newS, _ = s.Update(tea.KeyMsg{Type: tea.KeyDown})
 	s = newS
 	assert.Equal(t, 0, s.selectedProjectIndex)
 
@@ -552,9 +558,9 @@ func TestSidebar_IgnoresKeysWhenNotFocused(t *testing.T) {
 
 func TestSidebar_SetSize(t *testing.T) {
 	s := NewSidebar()
-	// Initial values should be 0
-	assert.Equal(t, 0, s.viewWidth)
-	assert.Equal(t, 0, s.viewHeight)
+	// Initial values should be reasonable defaults (so View() renders content before WindowSizeMsg)
+	assert.Equal(t, 24, s.viewWidth)
+	assert.Equal(t, 20, s.viewHeight)
 
 	s = s.SetSize(80, 24)
 	assert.Equal(t, 80, s.viewWidth)

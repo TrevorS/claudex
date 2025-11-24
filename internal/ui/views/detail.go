@@ -187,8 +187,9 @@ func (v *DetailView) handleKeyPress(msg tea.KeyMsg) (*DetailView, tea.Cmd) {
 func (v *DetailView) initViewport() *DetailView {
 	newView := *v
 
-	// Calculate content height (leave room for header/footer)
-	contentHeight := v.viewHeight - 4
+	// Calculate content height (leave room for detail header/footer only)
+	// Note: viewHeight already has border/padding subtracted by parent
+	contentHeight := v.viewHeight - 2
 	if contentHeight < 10 {
 		contentHeight = 10
 	}
@@ -290,11 +291,11 @@ func (v *DetailView) renderMessage(msg *domain.Message, index int) string {
 func (v *DetailView) formatRole(role domain.Role) string {
 	switch role {
 	case domain.RoleUser:
-		return userLabelStyle.Render("👤 User")
+		return userLabelStyle.Render("● User")
 	case domain.RoleAssistant:
-		return assistantLabelStyle.Render("🤖 Assistant")
+		return assistantLabelStyle.Render("◆ Assistant")
 	case domain.RoleTool:
-		return toolLabelStyle.Render("🔧 Tool")
+		return toolLabelStyle.Render("▶ Tool")
 	default:
 		return role.String()
 	}
@@ -307,14 +308,14 @@ func (v *DetailView) formatTokenCount(tokens int64) string {
 	}
 
 	if tokens < 1000 {
-		return fmt.Sprintf("📊 %d tokens", tokens)
+		return fmt.Sprintf("⊛ %d tokens", tokens)
 	}
 
 	if tokens < 1000000 {
-		return fmt.Sprintf("📊 %.1fK tokens", float64(tokens)/1000)
+		return fmt.Sprintf("⊛ %.1fK tokens", float64(tokens)/1000)
 	}
 
-	return fmt.Sprintf("📊 %.1fM tokens", float64(tokens)/1000000)
+	return fmt.Sprintf("⊛ %.1fM tokens", float64(tokens)/1000000)
 }
 
 // formatModel simplifies model names for display.

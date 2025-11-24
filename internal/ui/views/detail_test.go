@@ -838,11 +838,11 @@ func TestDetailViewFormatTokenCountEdgeCases(t *testing.T) {
 		expected string
 	}{
 		{"zero", 0, ""},
-		{"small", 500, "📊 500 tokens"},
-		{"exactly 1000", 1000, "📊 1.0K tokens"},
-		{"thousands", 5432, "📊 5.4K tokens"},
-		{"exactly 1M", 1000000, "📊 1.0M tokens"},
-		{"millions", 2500000, "📊 2.5M tokens"},
+		{"small", 500, "⊛ 500 tokens"},
+		{"exactly 1000", 1000, "⊛ 1.0K tokens"},
+		{"thousands", 5432, "⊛ 5.4K tokens"},
+		{"exactly 1M", 1000000, "⊛ 1.0M tokens"},
+		{"millions", 2500000, "⊛ 2.5M tokens"},
 	}
 
 	for _, tt := range tests {

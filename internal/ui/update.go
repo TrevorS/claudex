@@ -22,9 +22,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Handle conversations loaded from ListView
 		if msg.Err != nil {
 			m.err = msg.Err
+			m.loading = false
 			return m, nil
 		}
 		m.conversations = msg.Conversations
+		m.loading = false // Done loading
 		// Update sidebar with conversations
 		if m.sidebar != nil {
 			m.sidebar = m.sidebar.SetConversations(m.conversations)
@@ -40,6 +42,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Conversation != nil {
 			m.selected = msg.Conversation.ID
 			m.state = ViewDetail
+			m.sidebarVisible = false // Hide sidebar in detail view
 			// Create and initialize DetailView
 			m.detailView = views.NewDetailView(m.repository, msg.Conversation.ID)
 			cmd = m.detailView.Init()
@@ -64,6 +67,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case views.BackToListMsg:
 		// Handle back to list from DetailView
 		m.state = ViewList
+		m.sidebarVisible = true // Show sidebar again
 		m.detailView = nil
 		return m, nil
 
@@ -95,16 +99,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case components.ProjectSelectedMsg:
 		// Handle project selection from sidebar
-		// Filter conversations to selected project
-		var filtered []*domain.Conversation
-		for _, conv := range m.conversations {
-			if conv.ProjectPath == msg.ProjectPath {
-				filtered = append(filtered, conv)
+		if msg.ProjectPath == "" {
+			// "All" selected - show all conversations
+			m = m.SetSearchResults(nil).SetSearchActive(false)
+			if m.listView != nil {
+				m.listView = m.listView.SetConversations(m.conversations)
 			}
-		}
-		m = m.SetSearchResults(filtered).SetSearchActive(true)
-		if m.listView != nil {
-			m.listView = m.listView.SetConversations(filtered)
+		} else {
+			// Filter conversations to selected project
+			var filtered []*domain.Conversation
+			for _, conv := range m.conversations {
+				if conv.ProjectPath == msg.ProjectPath {
+					filtered = append(filtered, conv)
+				}
+			}
+			m = m.SetSearchResults(filtered).SetSearchActive(true)
+			if m.listView != nil {
+				m.listView = m.listView.SetConversations(filtered)
+			}
 		}
 		return m, nil
 
@@ -115,6 +127,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m = m.SetSearchResults(filtered).SetSearchActive(true)
 		if m.listView != nil {
 			m.listView = m.listView.SetConversations(filtered)
+		}
+		return m, nil
+
+	case views.CursorMovedMsg:
+		// Handle cursor movement from ListView - update metadata
+		if m.metadata != nil && msg.Conversation != nil {
+			m.metadata = m.metadata.SetConversation(msg.Conversation)
 		}
 		return m, nil
 
@@ -152,22 +171,69 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) handleWindowSize(msg tea.WindowSizeMsg) Model {
 	m = m.SetSize(msg.Width, msg.Height)
 
-	// Calculate pane widths for three-pane layout
-	sidebarWidth := 22
-	rightWidth := 38
-	centerWidth := m.width - sidebarWidth - rightWidth - 6 // Account for borders/spacing
-
-	if centerWidth < 20 {
-		centerWidth = 20
+	// Calculate content area height (total - header - footer)
+	// Header = 1 line, Footer = 1 line
+	contentHeight := m.height - 2
+	if contentHeight < 5 {
+		contentHeight = 5
 	}
 
-	// Forward dimensions to sidebar with safe height calculation
-	sidebarHeight := m.height - 4 // -4 for header/footer
-	if sidebarHeight < 0 {
-		sidebarHeight = 0
+	// Calculate pane widths based on sidebar visibility
+	var sidebarWidth, centerWidth, rightWidth int
+
+	if m.sidebarVisible {
+		// Three-pane layout
+		sidebarWidth = m.width * 25 / 100 // 25% for sidebar (wider for paths)
+		rightWidth = m.width * 22 / 100   // 22% for right panel
+		centerWidth = m.width - sidebarWidth - rightWidth
+
+		// Enforce minimum widths
+		if sidebarWidth < 25 {
+			sidebarWidth = 25
+		}
+		if rightWidth < 22 {
+			rightWidth = 22
+		}
+		if centerWidth < 30 {
+			centerWidth = 30
+		}
+	} else {
+		// Two-pane layout (detail view)
+		sidebarWidth = 0
+		rightWidth = m.width * 25 / 100
+		centerWidth = m.width - rightWidth
+
+		if rightWidth < 25 {
+			rightWidth = 25
+		}
+		if centerWidth < 40 {
+			centerWidth = 40
+		}
 	}
-	if m.sidebar != nil {
-		m.sidebar = m.sidebar.SetSize(sidebarWidth, sidebarHeight)
+
+	// Account for border and padding in center pane (border=2, padding=2)
+	innerCenterWidth := centerWidth - 4
+	innerCenterHeight := contentHeight - 4
+
+	if innerCenterWidth < 10 {
+		innerCenterWidth = 10
+	}
+	if innerCenterHeight < 3 {
+		innerCenterHeight = 3
+	}
+
+	// Forward dimensions to all components
+	if m.sidebar != nil && m.sidebarVisible {
+		m.sidebar = m.sidebar.SetSize(sidebarWidth-4, contentHeight-4)
+	}
+	if m.listView != nil {
+		m.listView = m.listView.SetSize(innerCenterWidth, innerCenterHeight)
+	}
+	if m.detailView != nil {
+		m.detailView = m.detailView.SetSize(innerCenterWidth, innerCenterHeight)
+	}
+	if m.metadata != nil {
+		m.metadata = m.metadata.SetSize(rightWidth-4, contentHeight-4)
 	}
 
 	return m
@@ -185,10 +251,13 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 
 	case tea.KeyEsc:
 		// Return to list view or close modal
-		if m.state == ViewDetail || m.state == ViewSearch || m.state == ViewStats {
-			return m.SetState(ViewList), nil
+		if m.state == ViewDetail {
+			m.state = ViewList
+			m.sidebarVisible = true // Show sidebar again
+			m.detailView = nil
+			return m, nil
 		}
-		if m.state == ViewPalette {
+		if m.state == ViewSearch || m.state == ViewStats || m.state == ViewPalette {
 			return m.SetState(ViewList), nil
 		}
 		return m, nil
@@ -218,25 +287,42 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 		return m, cmd
 
+	case tea.KeyRunes:
+		// Handle global keys before focus-based routing
+		if len(msg.Runes) > 0 && m.state == ViewList {
+			switch msg.Runes[0] {
+			case 'f', 'F':
+				// Global filter toggle - works regardless of focus
+				if m.sidebar != nil {
+					m.sidebar = m.sidebar.CycleFilter()
+				}
+				return m, nil
+			}
+		}
+		// Fall through to focus-based routing below
+		fallthrough
+
 	default:
-		// Forward keyboard input to active view
+		// Forward keyboard input to active view based on focus
 		if m.state == ViewSearch && m.searchBar != nil {
 			m.searchBar, cmd = m.searchBar.Update(msg)
 			return m, cmd
 		}
-		if m.listView != nil && m.state == ViewList {
-			// Route to sidebar for keyboard input
-			if m.sidebar != nil {
-				newSidebar, cmd := m.sidebar.Update(msg)
-				m.sidebar = newSidebar
-				if cmd != nil {
-					return m, cmd
+		if m.state == ViewList {
+			// Route to focused pane only
+			switch m.focusPane {
+			case FocusSidebar:
+				if m.sidebar != nil {
+					m.sidebar, cmd = m.sidebar.Update(msg)
+				}
+			case FocusCenter:
+				if m.listView != nil {
+					m.listView, cmd = m.listView.Update(msg)
 				}
 			}
-			m.listView, cmd = m.listView.Update(msg)
 			return m, cmd
 		}
-		if m.detailView != nil && m.state == ViewDetail {
+		if m.state == ViewDetail && m.detailView != nil {
 			m.detailView, cmd = m.detailView.Update(msg)
 			return m, cmd
 		}
@@ -304,9 +390,12 @@ func (m Model) handleTabKey() Model {
 		return m
 	}
 
-	// Cycle to next pane
-	nextFocus := (m.focusPane + 1) % 3
-	m = m.SetFocusPane(FocusPane(nextFocus))
+	// Toggle between Sidebar and Center only (right pane is display-only)
+	if m.focusPane == FocusSidebar {
+		m = m.SetFocusPane(FocusCenter)
+	} else {
+		m = m.SetFocusPane(FocusSidebar)
+	}
 
 	// Update component focus states
 	if m.sidebar != nil {

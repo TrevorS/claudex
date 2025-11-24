@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"os"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/TrevorS/claudex/internal/app"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 func main() {

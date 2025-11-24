@@ -3,6 +3,7 @@ package components
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
@@ -13,11 +14,21 @@ import (
 // Metadata displays conversation metadata and statistics in the right pane.
 type Metadata struct {
 	conversation *domain.Conversation
+	width        int
 }
 
 // NewMetadata creates a new Metadata component.
 func NewMetadata() *Metadata {
-	return &Metadata{}
+	return &Metadata{
+		width: 30, // Default width
+	}
+}
+
+// SetSize sets the available width for the metadata panel.
+func (m *Metadata) SetSize(width, height int) *Metadata {
+	newM := *m
+	newM.width = width
+	return &newM
 }
 
 // SetConversation sets the conversation to display.
@@ -38,17 +49,23 @@ func (m *Metadata) View() string {
 
 // renderEmpty returns an empty state message.
 func (m *Metadata) renderEmpty() string {
-	return "Metadata\n─────────\n\nSelect a conversation\nto see details"
+	title := "Metadata"
+	return title + "\n" + underline(len(title)) + "\n\nSelect a conversation\nto see details"
 }
 
 // renderConversationMetadata renders the metadata for the current conversation.
 func (m *Metadata) renderConversationMetadata() string {
 	var content string
 
-	// Title
+	// Title - truncate to available width
+	maxTitleLen := m.width - 2
+	if maxTitleLen < 10 {
+		maxTitleLen = 10
+	}
+	titleText := truncateString(m.conversation.Title, maxTitleLen)
 	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("51"))
-	content += titleStyle.Render(truncateString(m.conversation.Title, 30)) + "\n"
-	content += "─────────────────────────────\n\n"
+	content += titleStyle.Render(titleText) + "\n"
+	content += underline(len(titleText)) + "\n\n"
 
 	// Basic info
 	content += m.renderInfoLine("Date:", m.formatDate(m.conversation.CreatedAt))
@@ -57,14 +74,16 @@ func (m *Metadata) renderConversationMetadata() string {
 	content += m.renderInfoLine("Model:", m.conversation.Model)
 
 	// Statistics
-	content += "\n\nStatistics\n───────────\n"
+	statsHeader := "Statistics"
+	content += "\n\n" + statsHeader + "\n" + underline(len(statsHeader)) + "\n"
 	content += m.renderInfoLine("User Msgs:", fmt.Sprintf("%d", m.conversation.UserMessageCount()))
 	content += m.renderInfoLine("Avg Msg:", m.formatAvgTokens())
 
 	// Token breakdown
 	if totalTokens := m.conversation.TotalTokens(); totalTokens > 0 {
 		inputTokens, outputTokens, _, _ := m.getTokenBreakdown()
-		content += "\n\nToken Breakdown\n────────────────\n"
+		breakdownHeader := "Token Breakdown"
+		content += "\n\n" + breakdownHeader + "\n" + underline(len(breakdownHeader)) + "\n"
 		content += m.renderInfoLine("Input:", m.formatTokens(int(inputTokens)))
 		content += m.renderInfoLine("Output:", m.formatTokens(int(outputTokens)))
 	}
@@ -77,11 +96,24 @@ func (m *Metadata) renderInfoLine(key, value string) string {
 	keyStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("8")). // Dim gray
 		Width(12)
+
+	// Truncate value to fit available width (width - keyWidth - spacing)
+	maxValueLen := m.width - 14
+	if maxValueLen < 5 {
+		maxValueLen = 5
+	}
+	if len(value) > maxValueLen {
+		value = value[:maxValueLen-3] + "..."
+	}
+
 	return keyStyle.Render(key) + " " + value + "\n"
 }
 
 // formatDate formats a timestamp for display.
 func (m *Metadata) formatDate(t time.Time) string {
+	if t.IsZero() {
+		return "Unknown"
+	}
 	return t.Format("Jan 2, 2006 03:04 PM")
 }
 
@@ -125,4 +157,12 @@ func truncateString(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen-3] + "..."
+}
+
+// underline creates an underline of the given length.
+func underline(length int) string {
+	if length < 3 {
+		length = 3
+	}
+	return strings.Repeat("─", length)
 }

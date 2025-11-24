@@ -521,7 +521,20 @@ func TestListViewResponsiveLayoutMinimal(t *testing.T) {
 
 // Test: Edge Cases
 func TestListViewWindowResize(t *testing.T) {
-	conversations := createTestConversations()
+	// Use a long title that will truncate differently at different widths
+	now := time.Now()
+	conversations := []*domain.Conversation{
+		{
+			ID:        "conv-1",
+			Title:     "This is a very long conversation title that should be truncated at different widths",
+			Model:     "claude-sonnet-4",
+			CreatedAt: now,
+			UpdatedAt: now,
+			Messages: []*domain.Message{
+				{Role: domain.RoleUser, Content: "test", Timestamp: now},
+			},
+		},
+	}
 	repo := repository.NewMock(conversations)
 
 	view := NewListView(repo)
@@ -537,7 +550,7 @@ func TestListViewWindowResize(t *testing.T) {
 	output2 := view.View()
 	assert.NotEmpty(t, output2)
 
-	// Both should render successfully
+	// Both should render successfully, and long title should truncate differently
 	assert.NotEqual(t, output1, output2, "Different sizes should produce different output")
 }
 

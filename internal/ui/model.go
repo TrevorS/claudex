@@ -60,6 +60,10 @@ type Model struct {
 	isSearchActive bool   // True when showing search results
 	currentQuery   string // Current search query
 
+	// UI state
+	loading        bool // True until conversations loaded
+	sidebarVisible bool // False when viewing conversation detail
+
 	// Error state
 	err error
 }
@@ -67,21 +71,24 @@ type Model struct {
 // NewModel creates and returns a new root Model.
 func NewModel(repo repository.Repository) Model {
 	sidebar := components.NewSidebar()
+	sidebar = sidebar.SetFocus(true) // Start focused since focusPane is FocusSidebar
 	listView := views.NewListView(repo)
 	searchEngine := search.NewEngine(repo)
 	searchBar := components.NewSearchBar()
 	metadata := components.NewMetadata()
 	return Model{
-		repository:   repo,
-		searchEngine: searchEngine,
-		state:        ViewList,
-		focusPane:    FocusSidebar,
-		width:        0,
-		height:       0,
-		sidebar:      sidebar,
-		listView:     listView,
-		searchBar:    searchBar,
-		metadata:     metadata,
+		repository:     repo,
+		searchEngine:   searchEngine,
+		state:          ViewList,
+		focusPane:      FocusSidebar,
+		width:          0,
+		height:         0,
+		sidebar:        sidebar,
+		listView:       listView,
+		searchBar:      searchBar,
+		metadata:       metadata,
+		loading:        true, // Start in loading state
+		sidebarVisible: true, // Visible by default
 	}
 }
 

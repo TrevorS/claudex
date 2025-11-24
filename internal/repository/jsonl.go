@@ -28,6 +28,7 @@ type JSONLRepository struct {
 type conversationMetadata struct {
 	ID           string
 	Title        string
+	Model        string
 	ProjectPath  string
 	FilePath     string
 	CreatedAt    time.Time
@@ -48,9 +49,10 @@ type conversationLine struct {
 
 // msgData represents message content and usage information
 type msgData struct {
-	Role    string     `json:"role"`
-	Content string     `json:"content"`
-	Usage   *usageData `json:"usage"`
+	Role    string      `json:"role"`
+	Model   string      `json:"model"`
+	Content interface{} `json:"content"` // Can be string or array of content blocks
+	Usage   *usageData  `json:"usage"`
 }
 
 // usageData represents token usage for a message
@@ -102,7 +104,7 @@ func (r *JSONLRepository) List(ctx context.Context) ([]*domain.Conversation, err
 		conv := &domain.Conversation{
 			ID:                 meta.ID,
 			Title:              meta.Title,
-			Model:              "unknown", // Model info not stored in metadata, will be updated on full load
+			Model:              meta.Model, // Extracted from first assistant message in JSONL
 			ProjectPath:        meta.ProjectPath,
 			CreatedAt:          meta.CreatedAt,
 			UpdatedAt:          meta.UpdatedAt,
@@ -258,7 +260,11 @@ func (r *JSONLRepository) extractMetadata(filePath, projectPath string) (*conver
 	}
 	defer file.Close()
 
+	// Claude JSONL lines can be very large (tool results with full file contents)
+	// Default scanner buffer is 64KB, we need up to 10MB for some lines
+	const maxScannerBuffer = 10 * 1024 * 1024 // 10MB
 	scanner := bufio.NewScanner(file)
+	scanner.Buffer(make([]byte, 64*1024), maxScannerBuffer)
 
 	// Read first line for session ID and title
 	var firstLine, lastLine conversationLine
@@ -307,24 +313,32 @@ func (r *JSONLRepository) extractMetadata(filePath, projectPath string) (*conver
 		title = "Untitled Conversation"
 	}
 
-	// Count message lines (skip summary lines)
+	// Count message lines and extract model from first assistant response
 	file.Seek(0, 0)
 	scanner = bufio.NewScanner(file)
+	scanner.Buffer(make([]byte, 64*1024), maxScannerBuffer)
 	messageCount := 0
+	model := "unknown"
 	for scanner.Scan() {
 		text := scanner.Text()
 		var line conversationLine
 		if err := json.Unmarshal([]byte(text), &line); err != nil {
 			continue
 		}
-		if line.Type == "message" {
+		// Claude JSONL format uses "user" and "assistant" as type values for messages
+		if line.Type == "user" || line.Type == "assistant" {
 			messageCount++
+			// Extract model from first assistant message
+			if model == "unknown" && line.Type == "assistant" && line.Message != nil && line.Message.Model != "" {
+				model = line.Message.Model
+			}
 		}
 	}
 
 	return &conversationMetadata{
 		ID:           sessionID,
 		Title:        title,
+		Model:        model,
 		ProjectPath:  projectPath,
 		FilePath:     filePath,
 		CreatedAt:    createdAt,
@@ -344,14 +358,17 @@ func (r *JSONLRepository) loadConversation(meta *conversationMetadata) (*domain.
 	conv := &domain.Conversation{
 		ID:          meta.ID,
 		Title:       meta.Title,
-		Model:       "unknown", // Model info not available from file metadata
+		Model:       meta.Model, // Extracted from first assistant message during metadata scan
 		ProjectPath: meta.ProjectPath,
 		CreatedAt:   meta.CreatedAt,
 		UpdatedAt:   meta.UpdatedAt,
 		Messages:    make([]*domain.Message, 0),
 	}
 
+	// Claude JSONL lines can be very large (tool results with full file contents)
+	const maxScannerBuffer = 10 * 1024 * 1024 // 10MB
 	scanner := bufio.NewScanner(file)
+	scanner.Buffer(make([]byte, 64*1024), maxScannerBuffer)
 	for scanner.Scan() {
 		line := scanner.Text()
 
@@ -361,18 +378,17 @@ func (r *JSONLRepository) loadConversation(meta *conversationMetadata) (*domain.
 			continue
 		}
 
-		// Only add message-type lines (skip summaries)
-		if cl.Type == "message" && cl.Message != nil {
+		// Only add message-type lines (skip summaries, file-history-snapshot, etc.)
+		// Claude JSONL uses "user" and "assistant" as type values for messages
+		if (cl.Type == "user" || cl.Type == "assistant") && cl.Message != nil {
 			var role domain.Role
-			switch cl.Message.Role {
+			switch cl.Type {
 			case "user":
 				role = domain.RoleUser
 			case "assistant":
 				role = domain.RoleAssistant
-			case "tool":
-				role = domain.RoleTool
 			default:
-				continue // Skip unknown roles
+				continue // Skip unknown types
 			}
 
 			timestamp, _ := time.Parse(time.RFC3339Nano, cl.Timestamp)
@@ -388,9 +404,12 @@ func (r *JSONLRepository) loadConversation(meta *conversationMetadata) (*domain.
 				}
 			}
 
+			// Extract content - can be string or array of content blocks
+			content := extractMessageContent(cl.Message.Content)
+
 			msg := &domain.Message{
 				Role:      role,
-				Content:   cl.Message.Content,
+				Content:   content,
 				Timestamp: timestamp,
 				Tokens:    tokenCount,
 			}
@@ -404,6 +423,34 @@ func (r *JSONLRepository) loadConversation(meta *conversationMetadata) (*domain.
 	}
 
 	return conv, nil
+}
+
+// extractMessageContent extracts text content from the message content field.
+// Content can be either a string or an array of content blocks like [{"type":"text","text":"..."}].
+func extractMessageContent(content interface{}) string {
+	if content == nil {
+		return ""
+	}
+
+	// If it's already a string, return it directly
+	if s, ok := content.(string); ok {
+		return s
+	}
+
+	// If it's an array of content blocks, extract text from each block
+	if arr, ok := content.([]interface{}); ok {
+		var texts []string
+		for _, item := range arr {
+			if block, ok := item.(map[string]interface{}); ok {
+				if text, ok := block["text"].(string); ok {
+					texts = append(texts, text)
+				}
+			}
+		}
+		return strings.Join(texts, "\n")
+	}
+
+	return ""
 }
 
 // decodePath converts hyphenated directory names back to real paths.
