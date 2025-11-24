@@ -1,4 +1,10 @@
 // ABOUTME: Defines the Repository interface for conversation data access abstraction
+//
+// The repository implements a lazy loading strategy:
+//   - List() scans the filesystem and returns metadata-only conversations (fast)
+//   - GetByID() performs full JSONL parsing to load complete message data (slower, on-demand)
+//
+// This enables browsing 1000+ conversations efficiently without loading all message bodies at startup.
 package repository
 
 import (
