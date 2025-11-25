@@ -763,8 +763,8 @@ func TestCalculatePageSize(t *testing.T) {
 	assert.Greater(t, pageSize, 0)
 	assert.LessOrEqual(t, pageSize, 30)
 
-	// Test with very small height
+	// Test with very small height (L1: now uses max(3, height/2) instead of hardcoded 10)
 	view = view.SetSize(80, 3)
 	pageSize = view.calculatePageSize()
-	assert.Equal(t, 10, pageSize, "Should use minimum page size for small heights")
+	assert.Equal(t, 3, pageSize, "Should use reasonable fallback for small heights")
 }

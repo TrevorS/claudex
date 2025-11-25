@@ -104,6 +104,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m = m.SetSearchResults(nil).SetSearchActive(false)
 			if m.listView != nil {
 				m.listView = m.listView.SetConversations(m.conversations)
+				m.listView = m.listView.SetSelectedIndex(0) // C5: Reset selection on filter change
 			}
 		} else {
 			// Filter conversations to selected project
@@ -116,6 +117,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m = m.SetSearchResults(filtered).SetSearchActive(true)
 			if m.listView != nil {
 				m.listView = m.listView.SetConversations(filtered)
+				m.listView = m.listView.SetSelectedIndex(0) // C5: Reset selection on filter change
 			}
 		}
 		return m, nil
@@ -127,6 +129,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m = m.SetSearchResults(filtered).SetSearchActive(true)
 		if m.listView != nil {
 			m.listView = m.listView.SetConversations(filtered)
+			m.listView = m.listView.SetSelectedIndex(0) // C5: Reset selection on filter change
 		}
 		return m, nil
 
@@ -273,11 +276,12 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (Model, tea.Cmd) {
 	case tea.KeyCtrlF:
 		// Toggle search mode
 		if m.state == ViewSearch {
-			// Exit search mode
-			m = m.SetState(ViewList).SetSearchActive(false).SetSearchResults(nil)
+			// Exit search mode (H6: blur searchbar before transition)
 			if m.searchBar != nil {
+				m.searchBar.Blur()
 				m.searchBar.SetValue("")
 			}
+			m = m.SetState(ViewList).SetSearchActive(false).SetSearchResults(nil)
 		} else {
 			// Enter search mode
 			m = m.SetState(ViewSearch)

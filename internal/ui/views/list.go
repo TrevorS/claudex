@@ -113,10 +113,16 @@ func (v *ListView) handleKeyPress(msg tea.KeyMsg) (*ListView, tea.Cmd) {
 		return v.moveSelectionWithCmd(1)
 
 	case tea.KeyHome:
+		if len(v.conversations) == 0 {
+			return v, nil
+		}
 		newView := v.SetSelectedIndex(0)
 		return newView, v.sendCursorMovedCmd(newView)
 
 	case tea.KeyEnd:
+		if len(v.conversations) == 0 {
+			return v, nil
+		}
 		newView := v.SetSelectedIndex(len(v.conversations) - 1)
 		return newView, v.sendCursorMovedCmd(newView)
 
@@ -191,7 +197,8 @@ func (v *ListView) calculatePageSize() int {
 	// Rough estimate: height minus header/footer
 	pageSize := v.height - 5
 	if pageSize < 1 {
-		pageSize = 10
+		// L1: Use reasonable fallback based on height, not hardcoded 10
+		pageSize = max(3, v.height/2)
 	}
 	return pageSize
 }
@@ -246,10 +253,7 @@ func (v *ListView) renderTable() string {
 		// Format fields (compact)
 		msgs := fmt.Sprintf("%3d", conv.MessageCount())
 		date := v.formatTimestamp(conv.UpdatedAt)
-		title := conv.Title
-		if len(title) > titleWidth {
-			title = title[:titleWidth-3] + "..."
-		}
+		title := truncateString(conv.Title, titleWidth)
 
 		// Build line with selection indicator (single spaces)
 		prefix := "  "
@@ -302,10 +306,7 @@ func (v *ListView) buildColumns() []table.Column {
 // buildRow creates a table row from a conversation.
 func (v *ListView) buildRow(conv *domain.Conversation, index int) table.Row {
 	timestamp := v.formatTimestamp(conv.UpdatedAt)
-	title := conv.Title
-	if len(title) > 33 {
-		title = title[:30] + "..."
-	}
+	title := truncateString(conv.Title, 33)
 	messages := fmt.Sprintf("%d", conv.MessageCount())
 	tokens := v.formatTokens(conv.TotalTokens())
 	model := v.formatModel(conv.Model)
@@ -361,6 +362,19 @@ func (v *ListView) formatTokens(tokens int64) string {
 		return fmt.Sprintf("%.1fK", float64(tokens)/1000)
 	}
 	return fmt.Sprintf("%.1fM", float64(tokens)/1000000)
+}
+
+// truncateString safely truncates a string to maxLen runes, adding "..." if truncated.
+// This handles multi-byte UTF-8 characters correctly.
+func truncateString(s string, maxLen int) string {
+	if maxLen <= 3 {
+		return s
+	}
+	runes := []rune(s)
+	if len(runes) <= maxLen {
+		return s
+	}
+	return string(runes[:maxLen-3]) + "..."
 }
 
 // formatModel formats model name for display.

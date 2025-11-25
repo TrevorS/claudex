@@ -87,13 +87,14 @@ var (
 
 // NewDetailView creates a new DetailView for the given conversation ID.
 func NewDetailView(repo repository.Repository, conversationID string) *DetailView {
+	defaultWidth := 80
 	return &DetailView{
 		repository:     repo,
 		conversationID: conversationID,
-		viewWidth:      80,
+		viewWidth:      defaultWidth,
 		viewHeight:     24,
 		ready:          false,
-		mdRenderer:     render.NewRenderer(80),
+		mdRenderer:     render.NewRenderer(defaultWidth - 4), // C3: Use consistent width calculation
 	}
 }
 
@@ -263,8 +264,12 @@ func (v *DetailView) renderHeader() string {
 	)
 	parts = append(parts, metadataStyle.Render(metadata))
 
-	// Separator
-	separator := strings.Repeat("─", v.viewWidth-4)
+	// Separator (M4: guard against narrow terminals)
+	separatorWidth := v.viewWidth - 4
+	if separatorWidth < 1 {
+		separatorWidth = 1
+	}
+	separator := strings.Repeat("─", separatorWidth)
 	parts = append(parts, separatorStyle.Render(separator))
 
 	return strings.Join(parts, "\n")
@@ -280,9 +285,12 @@ func (v *DetailView) renderMessage(msg *domain.Message, index int) string {
 	headerLine := fmt.Sprintf("%s  %s", roleLabel, tokenStyle.Render(tokens))
 	parts = append(parts, headerLine)
 
-	// Message content - render markdown to terminal format
-	renderedContent := v.mdRenderer.Render(msg.Content)
-	parts = append(parts, messageContentStyle.Render(renderedContent))
+	// H3: Skip empty message content to avoid visual gaps
+	if strings.TrimSpace(msg.Content) != "" {
+		// Message content - render markdown to terminal format
+		renderedContent := v.mdRenderer.Render(msg.Content)
+		parts = append(parts, messageContentStyle.Render(renderedContent))
+	}
 
 	return strings.Join(parts, "\n")
 }
@@ -422,8 +430,25 @@ func (v *DetailView) SetSize(width, height int) *DetailView {
 
 	// Reinitialize viewport if already set up
 	if newView.ready && newView.conversation != nil {
+		// H5: Preserve scroll position during resize
+		oldYOffset := newView.viewport.YOffset
+
 		newView.content = newView.renderConversation()
+		contentLines := strings.Count(newView.content, "\n") + 1
 		newView = *newView.initViewport()
+
+		// Restore scroll position (clamped to new content bounds)
+		maxY := contentLines - newView.viewport.Height
+		if maxY < 0 {
+			maxY = 0
+		}
+		if oldYOffset > maxY {
+			oldYOffset = maxY
+		}
+		if oldYOffset < 0 {
+			oldYOffset = 0
+		}
+		newView.viewport.SetYOffset(oldYOffset)
 	}
 
 	return &newView
