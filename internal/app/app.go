@@ -18,20 +18,27 @@ type App struct {
 }
 
 // New creates and initializes a new App with the given configuration.
-// It validates the config and initializes the repository.
+// It validates the config and initializes the repository with caching.
 func New(config *Config) (*App, error) {
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
 
+	// Create base JSONL repository
 	repo, err := repository.NewJSONLRepository(config.ClaudeProjectsPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize repository: %w", err)
 	}
 
+	// Wrap with caching layer (max 50 conversations in LRU cache)
+	cachedRepo, err := repository.NewCachedRepository(repo, 50)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize cache: %w", err)
+	}
+
 	app := &App{
 		config:     config,
-		repository: repo,
+		repository: cachedRepo,
 	}
 
 	return app, nil

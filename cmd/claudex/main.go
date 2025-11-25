@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/TrevorS/claudex/internal/app"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 func main() {
@@ -43,6 +44,16 @@ func main() {
 	}
 
 	_ = configPath // For future use with config file loading
+
+	// Initialize Bubble Tea debug logging if DEBUG is set
+	if os.Getenv("DEBUG") != "" {
+		f, err := tea.LogToFile("debug.log", "claudex")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: Could not setup debug log: %v\n", err)
+		} else {
+			defer f.Close()
+		}
+	}
 
 	// Initialize application
 	application, err := app.New(config)

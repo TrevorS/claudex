@@ -63,6 +63,14 @@ Main → App (bootstrap) → Repository (load conversations) → UI Model
 4. **Lazy Loading** - Full message content only loaded when viewing a conversation, not at startup
 5. **Three-Pane Layout** - Sidebar (projects), center (conversations/messages), right (metadata) with responsive handling
 
+### Known Gotchas
+
+1. **Lipgloss Width() after Border()** - When composing multi-pane layouts with lipgloss, apply `Width()` and `Height()` constraints BEFORE adding borders/padding, not after. If you render content with borders first, then try to constrain with `Width()`, the already-bordered content may exceed the constraint and break layout calculations. See `view.go` `renderXxxWithSize()` functions for the correct pattern.
+
+2. **bubble-table breaks lipgloss layouts** - The `bubble-table` library's ANSI escape sequences confuse lipgloss width calculations. We replaced it with simple string rendering in `ListView`. If you need tables, use plain text formatting instead.
+
+3. **Emoji width calculation** - Emojis can cause width miscalculations in terminal layouts. Prefer ASCII characters for UI elements (e.g., `>` instead of 📁).
+
 ## Development Workflow
 
 ### Common Commands
@@ -88,17 +96,31 @@ go test -v ./internal/domain -run TestConversationAddMessage
 
 # Format code
 make format
-# or: gofmt -s -w .
 
 # Lint code
 make vet
-# or: go vet ./...
 
 # Run all checks (format, vet, test)
 make check
 
 # Clean build artifacts
 make clean
+```
+
+### UI Development (Rapid Iteration)
+
+```bash
+# Auto-rebuild on file changes (sub-second feedback loop)
+make dev
+
+# Same as dev, but also logs all Bubble Tea messages to debug.log
+make dev-debug
+
+# Run VHS tapes and capture UI screenshots
+make vhs-test
+
+# Record VHS demos for documentation
+make vhs-record
 ```
 
 ### Project Structure Guidelines
@@ -122,6 +144,16 @@ make clean
 - Keep functions small and focused
 - No circular dependencies between packages
 - Domain layer must not import from other layers (pure business logic)
+
+## Claude Code Skills
+
+Three project skills in `.claude/skills/` provide guidance for common development tasks:
+
+- **dev-mode** - Live reload with Air (`make dev`) for rapid UI iteration
+- **debug-ui** - Bubble Tea debug logging (`make dev-debug`) for message flow inspection
+- **capture-ui** - VHS terminal recordings for documentation and demos
+
+These skills are automatically available when working with Claude Code and can be invoked by asking about UI development, debugging, or creating demos.
 
 ## Testing Strategy
 

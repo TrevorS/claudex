@@ -65,6 +65,8 @@ func TestJSONLRepository_List(t *testing.T) {
 	// Verify one conversation's details
 	conv := idMap["sess-001"]
 	assert.Equal(t, "Test Conversation 1", conv.Title)
+	assert.Equal(t, "claude-sonnet-4-20250514", conv.Model, "Model should be extracted from assistant message")
+	assert.Equal(t, 2, conv.MessageCount(), "Should count user and assistant messages")
 	assert.False(t, conv.CreatedAt.IsZero())
 	assert.False(t, conv.UpdatedAt.IsZero())
 }
@@ -154,9 +156,9 @@ func TestJSONLRepository_CorruptedJSONL(t *testing.T) {
 	// Write a file with mixed valid and invalid JSON
 	corruptPath := filepath.Join(tmpDir, "-Users-trevor-test", "corrupted.jsonl")
 	err := os.WriteFile(corruptPath, []byte(`{"type":"summary","summary":"Test","sessionId":"sess-001","timestamp":"2025-11-23T10:00:00Z"}
-{"type":"message","message":{"role":"user","content":"Valid message"},"sessionId":"sess-001","timestamp":"2025-11-23T10:01:00Z"}
+{"type":"user","message":{"role":"user","content":"Valid message"},"sessionId":"sess-001","timestamp":"2025-11-23T10:01:00Z"}
 THIS IS NOT VALID JSON
-{"type":"message","message":{"role":"assistant","content":"Another valid message"},"sessionId":"sess-001","timestamp":"2025-11-23T10:02:00Z"}
+{"type":"assistant","message":{"role":"assistant","content":"Another valid message"},"sessionId":"sess-001","timestamp":"2025-11-23T10:02:00Z"}
 `), 0644)
 	require.NoError(t, err)
 
@@ -319,7 +321,8 @@ func createTestProjectStructure(t *testing.T, projects map[string][]string) stri
 // writeTestConversation writes a simple test conversation with summary and timestamps
 func writeTestConversation(t *testing.T, filePath string, title, sessionID, createdAt, updatedAt string) {
 	content := `{"type":"summary","summary":"` + title + `","sessionId":"` + sessionID + `","timestamp":"` + createdAt + `","uuid":"msg-001","version":"1.0"}
-{"type":"message","message":{"role":"user","content":"Test message"},"usage":{"input_tokens":50,"output_tokens":50},"sessionId":"` + sessionID + `","timestamp":"` + updatedAt + `","uuid":"msg-002"}`
+{"type":"user","message":{"role":"user","content":"Test message"},"usage":{"input_tokens":50,"output_tokens":50},"sessionId":"` + sessionID + `","timestamp":"` + createdAt + `","uuid":"msg-002"}
+{"type":"assistant","message":{"role":"assistant","model":"claude-sonnet-4-20250514","content":"Response"},"usage":{"input_tokens":50,"output_tokens":100},"sessionId":"` + sessionID + `","timestamp":"` + updatedAt + `","uuid":"msg-003"}`
 
 	err := os.WriteFile(filePath, []byte(content), 0644)
 	require.NoError(t, err)
@@ -336,7 +339,8 @@ func writeConversationWithMessages(t *testing.T, filePath, sessionID, title stri
 	}
 
 	for i, msg := range messages {
-		line := `{"type":"message","message":{"role":"` + msg.role + `","content":"` + msg.content + `"},"usage":{"input_tokens":` + itoa(msg.tokens) + `,"output_tokens":50},"sessionId":"` + sessionID + `","timestamp":"2025-11-23T10:0` + itoa(i) + `:00Z","uuid":"msg-00` + itoa(i+1) + `"}`
+		// Claude JSONL format uses role as the type (e.g., "user", "assistant")
+		line := `{"type":"` + msg.role + `","message":{"role":"` + msg.role + `","content":"` + msg.content + `"},"usage":{"input_tokens":` + itoa(msg.tokens) + `,"output_tokens":50},"sessionId":"` + sessionID + `","timestamp":"2025-11-23T10:0` + itoa(i) + `:00Z","uuid":"msg-00` + itoa(i+1) + `"}`
 		lines = append(lines, line)
 	}
 

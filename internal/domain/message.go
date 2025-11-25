@@ -24,6 +24,11 @@ func (r Role) IsValid() bool {
 	}
 }
 
+// String returns the string representation of the role.
+func (r Role) String() string {
+	return string(r)
+}
+
 // Message represents a single message in a conversation.
 type Message struct {
 	Role      Role
